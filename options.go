@@ -1,14 +1,14 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
-	"reflect"
 	"strings"
 )
 
 // BoolOpt describes a boolean option
 type BoolOpt struct {
-	BoolParam
+	*boolParam
 
 	// A space separated list of the option names *WITHOUT* the dashes, e.g. `f force` and *NOT* `-f --force`.
 	// The one letter names will then be called with a single dash (short option), the others with two (long options).
@@ -25,7 +25,7 @@ type BoolOpt struct {
 
 // StringOpt describes a string option
 type StringOpt struct {
-	StringParam
+	*stringParam
 
 	// A space separated list of the option names *WITHOUT* the dashes, e.g. `f force` and *NOT* `-f --force`.
 	// The one letter names will then be called with a single dash (short option), the others with two (long options).
@@ -42,7 +42,7 @@ type StringOpt struct {
 
 // IntOpt describes an int option
 type IntOpt struct {
-	IntParam
+	*intParam
 
 	// A space separated list of the option names *WITHOUT* the dashes, e.g. `f force` and *NOT* `-f --force`.
 	// The one letter names will then be called with a single dash (short option), the others with two (long options).
@@ -59,7 +59,7 @@ type IntOpt struct {
 
 // StringsOpt describes a string slice option
 type StringsOpt struct {
-	StringsParam
+	*stringsParam
 
 	// A space separated list of the option names *WITHOUT* the dashes, e.g. `f force` and *NOT* `-f --force`.
 	// The one letter names will then be called with a single dash (short option), the others with two (long options).
@@ -77,7 +77,7 @@ type StringsOpt struct {
 
 // IntsOpt describes an int slice option
 type IntsOpt struct {
-	IntsParam
+	*intsParam
 
 	// A space separated list of the option names *WITHOUT* the dashes, e.g. `f force` and *NOT* `-f --force`.
 	// The one letter names will then be called with a single dash (short option), the others with two (long options).
@@ -93,6 +93,56 @@ type IntsOpt struct {
 	HideValue bool
 }
 
+// VarOpt describes a user-settable option
+type VarOpt struct {
+	VarParam
+
+	// A space separated list of the option names *WITHOUT* the dashes, e.g. `f force` and *NOT* `-f --force`.
+	// The one letter names will then be called with a single dash (short option), the others with two (long options).
+	Name string
+	// The option description as will be shown in help messages
+	Desc string
+	// A space separated list of environment variables names to be used to initialize this option
+	EnvVar string
+
+	Value flag.Value
+	// A boolean to display or not the current value of the option in the help message
+	HideValue bool
+}
+
+func (vo *VarOpt) Set(s string) error {
+	return vo.Value.Set(s)
+}
+
+func (vo *VarOpt) String() string {
+	return vo.Value.String()
+}
+
+func (vo *VarOpt) IsBoolFlag() bool {
+	if bf, ok := vo.Value.(boolValued); ok {
+		return bf.IsBoolFlag()
+	}
+
+	return false
+}
+
+func (vo *VarOpt) IsMultiValued() bool {
+	if bf, ok := vo.Value.(multiValued); ok {
+		return bf.IsMultiValued()
+	}
+
+	return false
+}
+
+func (vo *VarOpt) SetMulti(vs []string) error {
+	mv, ok := vo.Value.(multiValued)
+	if !ok || !mv.IsMultiValued() {
+		panic("Bug")
+	}
+
+	return mv.SetMulti(vs)
+}
+
 /*
 BoolOpt defines a boolean option on the command c named `name`, with an initial value of `value` and a description of `desc` which will be used in help messages.
 
@@ -103,7 +153,11 @@ The one letter names will then be called with a single dash (short option), the 
 The result should be stored in a variable (a pointer to a bool) which will be populated when the app is run and the call arguments get parsed
 */
 func (c *Cmd) BoolOpt(name string, value bool, desc string) *bool {
-	return c.mkOpt(opt{name: name, desc: desc}, value).(*bool)
+	return c.Bool(BoolOpt{
+		Name:  name,
+		Value: value,
+		Desc:  desc,
+	})
 }
 
 /*
@@ -116,7 +170,11 @@ The one letter names will then be called with a single dash (short option), the 
 The result should be stored in a variable (a pointer to a string) which will be populated when the app is run and the call arguments get parsed
 */
 func (c *Cmd) StringOpt(name string, value string, desc string) *string {
-	return c.mkOpt(opt{name: name, desc: desc}, value).(*string)
+	return c.String(StringOpt{
+		Name:  name,
+		Value: value,
+		Desc:  desc,
+	})
 }
 
 /*
@@ -129,7 +187,11 @@ The one letter names will then be called with a single dash (short option), the 
 The result should be stored in a variable (a pointer to an int) which will be populated when the app is run and the call arguments get parsed
 */
 func (c *Cmd) IntOpt(name string, value int, desc string) *int {
-	return c.mkOpt(opt{name: name, desc: desc}, value).(*int)
+	return c.Int(IntOpt{
+		Name:  name,
+		Value: value,
+		Desc:  desc,
+	})
 }
 
 /*
@@ -142,7 +204,11 @@ The one letter names will then be called with a single dash (short option), the 
 The result should be stored in a variable (a pointer to a string slice) which will be populated when the app is run and the call arguments get parsed
 */
 func (c *Cmd) StringsOpt(name string, value []string, desc string) *[]string {
-	return c.mkOpt(opt{name: name, desc: desc}, value).(*[]string)
+	return c.Strings(StringsOpt{
+		Name:  name,
+		Value: value,
+		Desc:  desc,
+	})
 }
 
 /*
@@ -155,32 +221,36 @@ The one letter names will then be called with a single dash (short option), the 
 The result should be stored in a variable (a pointer to an int slice) which will be populated when the app is run and the call arguments get parsed
 */
 func (c *Cmd) IntsOpt(name string, value []int, desc string) *[]int {
-	return c.mkOpt(opt{name: name, desc: desc}, value).(*[]int)
+	return c.Ints(IntsOpt{
+		Name:  name,
+		Value: value,
+		Desc:  desc,
+	})
+}
+
+func (c *Cmd) VarOpt(name string, value flag.Value, desc string) {
+	c.mkOpt(opt{name: name, desc: desc, value: value})
 }
 
 type opt struct {
-	name          string
-	desc          string
-	envVar        string
-	names         []string
-	helpFormatter func(interface{}) string
-	value         reflect.Value
-	hideValue     bool
+	name      string
+	desc      string
+	envVar    string
+	names     []string
+	hideValue bool
+	value     flag.Value
 }
 
 func (o *opt) isBool() bool {
-	return o.value.Elem().Kind() == reflect.Bool
+	if bf, ok := o.value.(boolValued); ok {
+		return bf.IsBoolFlag()
+	}
+
+	return false
 }
 
 func (o *opt) String() string {
 	return fmt.Sprintf("Opt(%v)", o.names)
-}
-
-func (o *opt) get() interface{} {
-	return o.value.Elem().Interface()
-}
-func (o *opt) set(s string) error {
-	return vset(o.value, s)
 }
 
 func mkOptStrs(optName string) []string {
@@ -195,21 +265,13 @@ func mkOptStrs(optName string) []string {
 	return namesSl
 }
 
-func (c *Cmd) mkOpt(opt opt, defaultValue interface{}) interface{} {
-	value := reflect.ValueOf(defaultValue)
-	res := reflect.New(value.Type())
-
-	opt.helpFormatter = formatterFor(value.Type())
-
-	vinit(res, opt.envVar, defaultValue)
+func (c *Cmd) mkOpt(opt opt) {
+	setFromEnv(opt.value, opt.envVar)
 
 	opt.names = mkOptStrs(opt.name)
-	opt.value = res
 
 	c.options = append(c.options, &opt)
 	for _, name := range opt.names {
 		c.optionsIdx[name] = &opt
 	}
-
-	return res.Interface()
 }

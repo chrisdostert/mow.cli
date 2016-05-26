@@ -68,6 +68,11 @@ IntsParam represents an int slice option or argument
 type IntsParam interface{}
 
 /*
+IntsParam represents an int slice option or argument
+*/
+type VarParam interface{}
+
+/*
 CmdInitializer is a function that configures a command by adding options, arguments, a spec, sub commands and the code
 to execute when the command is called
 */
@@ -108,9 +113,15 @@ The result should be stored in a variable (a pointer to a bool) which will be po
 func (c *Cmd) Bool(p BoolParam) *bool {
 	switch x := p.(type) {
 	case BoolOpt:
-		return c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*bool)
+		v := x.Value
+		x.boolParam = &boolParam{into: &v}
+		c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.boolParam.into
 	case BoolArg:
-		return c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*bool)
+		v := x.Value
+		x.boolParam = &boolParam{into: &v}
+		c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.boolParam.into
 	default:
 		panic(fmt.Sprintf("Unhandled param %v", p))
 	}
@@ -125,9 +136,15 @@ The result should be stored in a variable (a pointer to a string) which will be 
 func (c *Cmd) String(p StringParam) *string {
 	switch x := p.(type) {
 	case StringOpt:
-		return c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*string)
+		v := x.Value
+		x.stringParam = &stringParam{into: &v}
+		c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.into
 	case StringArg:
-		return c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*string)
+		v := x.Value
+		x.stringParam = &stringParam{into: &v}
+		c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.into
 	default:
 		panic(fmt.Sprintf("Unhandled param %v", p))
 	}
@@ -142,9 +159,15 @@ The result should be stored in a variable (a pointer to an int) which will be po
 func (c *Cmd) Int(p IntParam) *int {
 	switch x := p.(type) {
 	case IntOpt:
-		return c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*int)
+		v := x.Value
+		x.intParam = &intParam{into: &v}
+		c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.into
 	case IntArg:
-		return c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*int)
+		v := x.Value
+		x.intParam = &intParam{into: &v}
+		c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.into
 	default:
 		panic(fmt.Sprintf("Unhandled param %v", p))
 	}
@@ -159,9 +182,15 @@ The result should be stored in a variable (a pointer to a string slice) which wi
 func (c *Cmd) Strings(p StringsParam) *[]string {
 	switch x := p.(type) {
 	case StringsOpt:
-		return c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*[]string)
+		v := x.Value
+		x.stringsParam = &stringsParam{into: &v}
+		c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.into
 	case StringsArg:
-		return c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*[]string)
+		v := x.Value
+		x.stringsParam = &stringsParam{into: &v}
+		c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.into
 	default:
 		panic(fmt.Sprintf("Unhandled param %v", p))
 	}
@@ -176,9 +205,38 @@ The result should be stored in a variable (a pointer to an int slice) which will
 func (c *Cmd) Ints(p IntsParam) *[]int {
 	switch x := p.(type) {
 	case IntsOpt:
-		return c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*[]int)
+		v := make([]int, len(x.Value))
+		for idx, value := range x.Value {
+			v[idx] = value
+		}
+		x.intsParam = &intsParam{into: &v}
+		c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.into
 	case IntsArg:
-		return c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue}, x.Value).(*[]int)
+		v := make([]int, len(x.Value))
+		for idx, value := range x.Value {
+			v[idx] = value
+		}
+		x.intsParam = &intsParam{into: &v}
+		c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+		return x.into
+	default:
+		panic(fmt.Sprintf("Unhandled param %v", p))
+	}
+}
+
+/*
+Ints can be used to add an int slice option or argument to a command.
+It accepts either a IntsOpt or a IntsArg struct.
+
+The result should be stored in a variable (a pointer to an int slice) which will be populated when the app is run and the call arguments get parsed
+*/
+func (c *Cmd) Var(p VarParam) {
+	switch x := p.(type) {
+	case VarOpt:
+		c.mkOpt(opt{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
+	case VarArg:
+		c.mkArg(arg{name: x.Name, desc: x.Desc, envVar: x.EnvVar, hideValue: x.HideValue, value: &x})
 	default:
 		panic(fmt.Sprintf("Unhandled param %v", p))
 	}
@@ -310,14 +368,14 @@ func (c *Cmd) formatArgValue(arg *arg) string {
 	if arg.hideValue {
 		return " "
 	}
-	return "=" + arg.helpFormatter(arg.get())
+	return "=" + arg.value.String()
 }
 
 func (c *Cmd) formatOptValue(opt *opt) string {
 	if opt.hideValue {
 		return " "
 	}
-	return "=" + opt.helpFormatter(opt.get())
+	return "=" + opt.value.String()
 }
 
 func (c *Cmd) formatDescription(desc, envVar string) string {
